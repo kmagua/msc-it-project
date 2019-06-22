@@ -1,0 +1,19 @@
+miss_var_summary() and miss_case_summary()
+
+
+# Return the summary of missingness in each variable, grouped by Month, in the `airquality` dataset
+airquality %>% group_by(Month) %>% miss_var_summary
+
+# Return the summary of missingness in each case, grouped by Month, in the `airquality` dataset
+airquality %>% group_by(Month) %>% miss_case_summary
+
+
+# Tabulate missingness in each variable and case of the `airquality` dataset
+miss_var_table(airquality)
+miss_case_table(airquality)
+
+# Tabulate the missingness in each variable, grouped by Month, in the `airquality` dataset
+airquality %>% group_by(Month) %>% miss_var_table()
+
+# Tabulate of missingness in each case, grouped by Month, in the `airquality` dataset
+airquality %>% group_by(Month) %>% miss_case_table()

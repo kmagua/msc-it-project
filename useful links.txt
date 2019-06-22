@@ -1,0 +1,3 @@
+http://www.learnbymarketing.com/methods/neural-networks/
+http://www.learnbymarketing.com/tutorials/neural-networks-in-r-tutorial/
+https://datascienceplus.com/fitting-neural-network-in-r/
