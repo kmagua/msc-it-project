@@ -37,45 +37,83 @@ write.csv(converted_to_numeric_column, file = "transformed_data.csv",row.names=F
 data = read.csv('transformed_data.csv')
 #find correlation between attributes
 correlation <- cor(data$pcnormal, data$classnotckd, use="complete.obs", method="kendall") 
-correlation
-#XXXXXXXXXXXXXX 1 St test is with the categorical data converted to binary without scaling XXXXXXXXXXXXXX
-n <- names(data)
-f <- as.formula(paste("classnotckd ~", paste(n[!n %in% "classnotckd"], collapse = " + ")))
-set.seed(769)
-rows <- sample(nrow(data))
-data <- data[rows, ]
-res <- cor(data)
-write.table(round(res, 2), file='./images/my_data.txt', sep="\t")
-write.csv(data, file = "randomized_records.csv",row.names=FALSE)
-k <- 6
-pbar <- create_progress_bar('text')
-pbar$init(k)
-set.seed(897)
-folding <- crossv_kfold(data,k)
-confusion_matrix <- NULL
-for(i in 1:k){
+
+#XXXXXXXXXXXXXXXX The CUSTOM MODEL FITTING FUNCTION XXXXXXXXXXXXXXXXXXXXX
+columns <- NULL
+fit_model <- function(k, folding, scene, columns){
+  for(i in 1:k){
     train.data <- as.data.frame(folding$train[[i]])
     test.data <- as.data.frame(folding$test[[i]])
+    n_cols <- ncol(train.data) - 1
     table(train.data$classnotckd)
     nn <- neuralnet(f, data=train.data, hidden=c(5,4), linear.output = T)
-    #png(file = paste("./imagesfold - ",i , " model.png"))
+    #png(file = paste("./images/fold - ",i , scene , " model.png"))
     #print(plot(nn))
     #dev.off()
     #Test the model
-    pr.nn <- compute(nn,test.data[,1:25])
+    pr.nn <- compute(nn,test.data[,1:n_cols])
     #Confusion Matrix & Classification error. Saved as png
     prediction <- pr.nn$net.result
     classified_prediction <- ifelse(prediction>0.5,'No CKD','CKD')
     test_data <- ifelse(test.data$classnotckd == 1, 'No CKD','CKD')
     cm <- confusionMatrix(factor(classified_prediction), factor(test_data))
     confusion_matrix <- as.table(cm)
-    png(file = paste("./images/fold",i , " confusion matrix.png"))
+    png(file = paste("./images/fold ",i , scene , " confusion matrix.png"))
     fourfoldplot(confusion_matrix)
     dev.off()
     
     #Save the merged training and test data to a file for current fold
     train.data$type <- 'train'
     test.data$type <- 'test'
-    write.csv(rbind(train.data, test.data), file = paste("./10-fold-data/",i , " - fold.csv"),row.names=FALSE)
+    write.csv(rbind(train.data, test.data), file = paste("./10-fold-data/",i , scene , " - fold.csv"),row.names=FALSE)
     pbar$step()
+  }
 }
+
+# RANDOMIZE THE DATA
+rows <- sample(nrow(data))
+data <- data[rows, ]
+write.csv(data, file = "randomized_records.csv",row.names=FALSE)
+
+# XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+#               1 St test is with the categorical data converted to binary without scaling
+# XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+#randomize data
+data < read.csv('randomized_records.csv')
+set.seed(769)
+#find attribute correlation
+res <- cor(data)
+write.table(round(res, 2), file='./images/my_data.txt', sep="\t")
+
+attribute_labels <- names(data)
+f <- as.formula(paste("classnotckd ~", paste(attribute_labels[!attribute_labels %in% "classnotckd"], collapse = " + ")))
+k <- 6
+pbar <- create_progress_bar('text')
+pbar$init(k)
+set.seed(897)
+folding <- crossv_kfold(data,k)
+confusion_matrix <- NULL
+fit_model(k,folding)
+
+
+# XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+#         FITTING THE MODEL with data whose correlation with the outcome variable >60 
+# XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+#data prep
+data < read.csv('randomized_records.csv')
+correlation <- read.csv('attributes_correlation.txt')
+features <- correlation[abs(correlation$classnotckd) <=0.6, 1]
+features <- as.vector(features)
+new_data <- subset(data, select=append(features, 'classnotckd'))
+
+#
+attribute_labels <- names(new_data)
+f <- as.formula(paste("classnotckd ~", paste(attribute_labels[!attribute_labels %in% "classnotckd"], collapse = " + ")))
+k <- 6
+pbar <- create_progress_bar('text')
+pbar$init(k)
+set.seed(897)
+folding <- crossv_kfold(new_data,k)
+confusion_matrix <- NULL
+fit_model(k,folding, 'Correlation less than 60')
+
