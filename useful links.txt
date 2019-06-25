@@ -1,3 +1,7 @@
 http://www.learnbymarketing.com/methods/neural-networks/
 http://www.learnbymarketing.com/tutorials/neural-networks-in-r-tutorial/
 https://datascienceplus.com/fitting-neural-network-in-r/
+https://towardsdatascience.com/the-use-of-knn-for-missing-values-cf33d935c637
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4959387/pdf/12911_2016_Article_318.pdf
+
+https://www.r-bloggers.com/multilabel-classification-with-neuralnet-package/ -- multilabel NN classification R

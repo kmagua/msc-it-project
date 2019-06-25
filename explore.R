@@ -1,4 +1,16 @@
 setwd('Project')
+#the Neural Network Package
+library(neuralnet)
+#boot is used for crossvalidation
+library(caret)
+library(e1071)
+#K fold cross validation package
+library(modelr)
+library(plyr)
+#used to shuffle data
+library(merTools)
+library(xlsx)
+
 #convert missing value character to R's Missing value keyword
 ckd <- read.csv("chronic_kidney_disease.csv", na.strings = c("?", "\t?"), stringsAsFactors = TRUE)
 #write back the tranformed data into a separate csv
@@ -11,7 +23,8 @@ write.csv(no_missing, file = "original_complete_cases.csv",row.names=FALSE)
 ckd <- read.csv("original_complete_cases.csv", stringsAsFactors = TRUE)
 #Scale numeric attributes
 numeric_cols <- sapply(ckd, is.numeric)
-ckd[numeric_cols] <- lapply(ckd[numeric_cols], scale)
+standardize_data <- function(x){ (x - min(x))/(max(x) - min(x)) }
+ckd[numeric_cols] <- lapply(ckd[numeric_cols], standardize_data)
 #str(ckd)
 write.csv(ckd, file = "original_complete_cases_numeric_scaled.csv",row.names=FALSE)
 ckd <- read.csv("original_complete_cases_numeric_scaled.csv", stringsAsFactors = TRUE)
@@ -25,41 +38,44 @@ data = read.csv('transformed_data.csv')
 #find correlation between attributes
 correlation <- cor(data$pcnormal, data$classnotckd, use="complete.obs", method="kendall") 
 correlation
-#XXXXXXXXXXXXXX LOAD NEURALNT PACKAGE XXXXXXXXXXXXXX
-library(neuralnet)
-#boot is used for crossvalidation
-library(boot)
+#XXXXXXXXXXXXXX 1 St test is with the categorical data converted to binary without scaling XXXXXXXXXXXXXX
+n <- names(data)
+f <- as.formula(paste("classnotckd ~", paste(n[!n %in% "classnotckd"], collapse = " + ")))
 set.seed(769)
-cv.error <- NULL
-k <- 10
-library(plyr) 
+rows <- sample(nrow(data))
+data <- data[rows, ]
+res <- cor(data)
+write.table(round(res, 2), file='./images/my_data.txt', sep="\t")
+write.csv(data, file = "randomized_records.csv",row.names=FALSE)
+k <- 6
 pbar <- create_progress_bar('text')
 pbar$init(k)
-f <- as.formula(paste("classnotckd ~", paste(n[!n %in% "classnotckd"], collapse = " + ")))
-nn_model.cor = NULL
+set.seed(897)
+folding <- crossv_kfold(data,k)
+confusion_matrix <- NULL
 for(i in 1:k){
-    index <- sample(1:nrow(data),round(0.9*nrow(data)))
-    train.cv <- data[index,]
+    train.data <- as.data.frame(folding$train[[i]])
+    test.data <- as.data.frame(folding$test[[i]])
+    table(train.data$classnotckd)
+    nn <- neuralnet(f, data=train.data, hidden=c(5,4), linear.output = T)
+    #png(file = paste("./imagesfold - ",i , " model.png"))
+    #print(plot(nn))
+    #dev.off()
+    #Test the model
+    pr.nn <- compute(nn,test.data[,1:25])
+    #Confusion Matrix & Classification error. Saved as png
+    prediction <- pr.nn$net.result
+    classified_prediction <- ifelse(prediction>0.5,'No CKD','CKD')
+    test_data <- ifelse(test.data$classnotckd == 1, 'No CKD','CKD')
+    cm <- confusionMatrix(factor(classified_prediction), factor(test_data))
+    confusion_matrix <- as.table(cm)
+    png(file = paste("./images/fold",i , " confusion matrix.png"))
+    fourfoldplot(confusion_matrix)
+    dev.off()
     
-    test.cv <- data[-index,]
-    
-    n <- names(train.cv)
-    nn <- neuralnet(f,data=train.cv,hidden=c(5,2),linear.output=T)   
-    pr.nn <- compute(nn,test.cv[,1:25])
-    pr.nn <- pr.nn$net.result #*(max(data$classnotckd)-min(data$classnotckd))+min(data$classnotckd)
-    nn_model.cor[i] <- cor(pr.nn, test.cv$classnotckd)
-    #test.cv.r <- (test.cv$classnotckd)*(max(data$classnotckd)-min(data$classnotckd))+min(data$classnotckd)   
-    cv.error[i] <- sum((test.cv.r - pr.nn)^2)/nrow(test.cv)
-    
-    #plot(nn)
     #Save the merged training and test data to a file for current fold
-    train.cv$type <- 'train'
-    test.cv$type <- 'test'
-    write.csv(rbind(train.cv, test.cv), file = paste("./10-fold-data/",i , " - fold.csv"),row.names=FALSE)
+    train.data$type <- 'train'
+    test.data$type <- 'test'
+    write.csv(rbind(train.data, test.data), file = paste("./10-fold-data/",i , " - fold.csv"),row.names=FALSE)
     pbar$step()
 }
-cv.error
-mean(cv.error)
-
-nn_model.cor
-mean(nn_model.cor)
